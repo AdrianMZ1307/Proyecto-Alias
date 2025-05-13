@@ -1,109 +1,131 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
 {
-    // Referencia al componente Rigidbody del jugador (para moverlo con física)
     private Rigidbody rb;
 
-    // Velocidad de movimiento del personaje
+    // NUEVA variable pública para referencia a la cámara
+    public Transform cameraTransform;
+
     [Header("Movimiento")]
     public float moveSpeed = 5f;
+    private Vector3 inputDirection;
 
-    // Fuerza con la que el jugador salta
     [Header("Salto")]
     public float jumpForce = 7f;
-
-    // Para saber si el jugador está tocando el suelo
-    private bool isGrounded = false;
-
-    // Detección de suelo: esto es para que el jugador no salte en el aire
-    public Transform groundCheck;
-    public float groundDistance = 0.3f;
+    public float groundCheckDistance = 0.2f; // Distancia para el raycast
     public LayerMask groundMask;
+    private bool isGrounded;
 
-    // Golpe: cooldown entre ataques
     [Header("Combate")]
     public float attackCooldown = 1f;
     private bool canAttack = true;
 
+
+    // Variables para rotación suave
+    [Header("Rotación hacia cámara")]
+    public float turnSmoothTime = 0.1f;
+    float turnSmoothVelocity;
+
     void Start()
     {
-        // Obtenemos el Rigidbody para aplicarle fuerzas o moverlo
         rb = GetComponent<Rigidbody>();
+        rb.freezeRotation = true; // Evita que se caiga al girar
     }
 
     void Update()
     {
-        // Movimiento del personaje
-        Move();
-
-        // Salto cuando presionamos espacio
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
-        {
-            Jump();
-        }
-
-        // Golpe cuando presionamos clic izquierdo
-        if (Input.GetMouseButtonDown(0) && canAttack)
-        {
-            Attack();
-        }
-
-        // Revisar si estamos en el suelo cada frame
+        HandleMovementInput();
+        HandleJumpInput();
+        HandleAttackInput();
         CheckGround();
     }
 
-    void Move()
+    void HandleMovementInput()
     {
-        // Tomamos la entrada de teclas (WASD o flechas)
-        float moveX = Input.GetAxis("Horizontal"); // A/D o ←/→
-        float moveZ = Input.GetAxis("Vertical");   // W/S o ↑/↓
+        float moveX = Input.GetAxis("Horizontal");
+        float moveZ = Input.GetAxis("Vertical");
+        Debug.Log($"Input: {moveX}, {moveZ}");
 
-        // Creamos un vector con esa dirección
-        Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        // Dirección de entrada del jugador (plano XZ)
+        Vector3 input = new Vector3(moveX, 0f, moveZ).normalized;
 
-        // Mantenemos la velocidad vertical (por si estamos cayendo o saltando)
-        Vector3 velocity = move * moveSpeed;
-        velocity.y = rb.velocity.y;
+        // Solo procesamos si hay input
+        if (input.magnitude >= 0.1f)
+        {
+            // Dirección relativa a la cámara
+            float targetAngle = Mathf.Atan2(input.x, input.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
 
-        // Aplicamos la velocidad al Rigidbody
-        rb.velocity = velocity;
+            // Suavizar la rotación (para no girar instantáneamente)
+            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+
+            // Aplicar rotación al personaje
+            transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+            // Calcular dirección en la que caminar
+            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+
+            // Movimiento
+            Vector3 velocity = moveDir.normalized * moveSpeed;
+            velocity.y = rb.linearVelocity.y;
+            rb.linearVelocity = velocity;
+        }
+        else
+        {
+            // Si no hay input, solo mantenemos la velocidad vertical (caída, etc.)
+            Vector3 stop = rb.linearVelocity;
+            stop.x = 0f;
+            stop.z = 0f;
+            rb.linearVelocity = stop;
+        }
     }
 
-    void Jump()
+
+    void FixedUpdate()
     {
-        // Aplicamos una fuerza hacia arriba
-        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        // Movimiento continuo con Rigidbody
+        Vector3 moveVelocity = inputDirection * moveSpeed;
+        moveVelocity.y = rb.linearVelocity.y; // mantenemos la velocidad vertical
+        rb.linearVelocity = moveVelocity;
     }
 
-    void Attack()
+    void HandleJumpInput()
     {
-        // Aquí iría la animación o el sistema de combate (de momento, solo mostramos un mensaje)
-        Debug.Log("¡ATAQUE!");
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        }
+    }
 
-        // Ponemos el cooldown para evitar spamear el ataque
-        canAttack = false;
-        Invoke(nameof(ResetAttack), attackCooldown);
+    void HandleAttackInput()
+    {
+        if (Input.GetMouseButtonDown(0) && canAttack)
+        {
+            Debug.Log("¡ATAQUE!");
+            canAttack = false;
+            Invoke(nameof(ResetAttack), attackCooldown);
+        }
     }
 
     void ResetAttack()
     {
-        // Permitimos atacar de nuevo después del cooldown
         canAttack = true;
     }
 
     void CheckGround()
     {
-        // Usamos un SphereCast para verificar si estamos tocando el suelo
-        isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
+        // Disparamos un rayo desde el centro del jugador hacia abajo
+        Ray ray = new Ray(transform.position, Vector3.down);
+
+        // Si toca algo a una pequeña distancia (como el suelo), estamos en el suelo
+        isGrounded = Physics.Raycast(ray, groundCheckDistance + 0.1f, groundMask);
     }
 
-    // Esto dibuja un gizmo en el editor para ver dónde se revisa el suelo
-    private void OnDrawGizmosSelected()
+    void OnDrawGizmosSelected()
     {
-        if (groundCheck == null) return;
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
+        // Dibuja el rayo en el editor para ver la detección del suelo
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * (groundCheckDistance + 0.1f));
     }
 }

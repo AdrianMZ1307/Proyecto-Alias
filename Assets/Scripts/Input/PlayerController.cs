@@ -3,18 +3,21 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
 {
+    [Header("Datos del personaje")]
+    public CharacterStats characterStats;
+
     private Rigidbody rb;
 
-    // NUEVA variable pública para referencia a la cámara
     public Transform cameraTransform;
 
     [Header("Movimiento")]
-    public float moveSpeed = 5f;
-    private Vector3 inputDirection;
+    private float moveSpeed = 5f;
+    private float runSpeed = 1.5f;
+    private Vector3 moveDirection;
 
     [Header("Salto")]
     public float jumpForce = 7f;
-    public float groundCheckDistance = 0.2f; // Distancia para el raycast
+    public float groundCheckDistance = 0.2f;
     public LayerMask groundMask;
     private bool isGrounded;
 
@@ -22,16 +25,27 @@ public class PlayerController : MonoBehaviour
     public float attackCooldown = 1f;
     private bool canAttack = true;
 
-
-    // Variables para rotación suave
     [Header("Rotación hacia cámara")]
     public float turnSmoothTime = 0.1f;
     float turnSmoothVelocity;
 
+    [Header("Coyote Time")]
+    public float coyoteTime = 0.2f;
+    private float coyoteTimeCounter;
+
+    [Header("Saltos en el aire")]
+    private int extraJumps = 1; // 1 = doble salto, 2 = triple salto
+    private int jumpsLeft;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true; // Evita que se caiga al girar
+        rb.freezeRotation = true;
+
+        // Stat Variables
+        moveSpeed = characterStats.moveSpeed;
+        runSpeed = characterStats.runSpeed;
+        extraJumps = characterStats.extraJumps;
     }
 
     void Update()
@@ -48,53 +62,46 @@ public class PlayerController : MonoBehaviour
         float moveZ = Input.GetAxis("Vertical");
         Debug.Log($"Input: {moveX}, {moveZ}");
 
-        // Dirección de entrada del jugador (plano XZ)
         Vector3 input = new Vector3(moveX, 0f, moveZ).normalized;
 
-        // Solo procesamos si hay input
         if (input.magnitude >= 0.1f)
         {
-            // Dirección relativa a la cámara
             float targetAngle = Mathf.Atan2(input.x, input.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
-
-            // Suavizar la rotación (para no girar instantáneamente)
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
-
-            // Aplicar rotación al personaje
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
-            // Calcular dirección en la que caminar
-            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-
-            // Movimiento
-            Vector3 velocity = moveDir.normalized * moveSpeed;
-            velocity.y = rb.linearVelocity.y;
-            rb.linearVelocity = velocity;
+            moveDirection = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
         }
         else
         {
-            // Si no hay input, solo mantenemos la velocidad vertical (caída, etc.)
-            Vector3 stop = rb.linearVelocity;
-            stop.x = 0f;
-            stop.z = 0f;
-            rb.linearVelocity = stop;
+            moveDirection = Vector3.zero;
         }
     }
 
-
     void FixedUpdate()
     {
-        // Movimiento continuo con Rigidbody
-        Vector3 moveVelocity = inputDirection * moveSpeed;
-        moveVelocity.y = rb.linearVelocity.y; // mantenemos la velocidad vertical
-        rb.linearVelocity = moveVelocity;
+        float speed = IsRunning() ? moveSpeed * runSpeed : moveSpeed;
+        Vector3 velocity = moveDirection * speed;
+        velocity.y = rb.linearVelocity.y;
+        rb.linearVelocity = velocity;
     }
-
+    bool IsRunning()
+    {
+        return Input.GetKey(KeyCode.LeftShift) && isGrounded;
+    }
     void HandleJumpInput()
     {
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        if (Input.GetKeyDown(KeyCode.Space))
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            if (isGrounded || coyoteTimeCounter > 0f)
+            {
+                Jump();
+            }
+            else if (jumpsLeft > 0)
+            {
+                Jump();
+                jumpsLeft--;
+            }
         }
     }
 
@@ -115,17 +122,29 @@ public class PlayerController : MonoBehaviour
 
     void CheckGround()
     {
-        // Disparamos un rayo desde el centro del jugador hacia abajo
-        Ray ray = new Ray(transform.position, Vector3.down);
+        bool wasGrounded = isGrounded;
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance + 0.1f, groundMask);
 
-        // Si toca algo a una pequeña distancia (como el suelo), estamos en el suelo
-        isGrounded = Physics.Raycast(ray, groundCheckDistance + 0.1f, groundMask);
+        if (isGrounded)
+        {
+            // Reset cuando tocamos el suelo
+            coyoteTimeCounter = coyoteTime;
+            jumpsLeft = extraJumps;
+        }
+        else
+        {
+            // Contador de tiempo en el aire
+            coyoteTimeCounter -= Time.deltaTime;
+        }
     }
 
     void OnDrawGizmosSelected()
     {
-        // Dibuja el rayo en el editor para ver la detección del suelo
-        Gizmos.color = Color.green;
+        Gizmos.color = Color.red;
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * (groundCheckDistance + 0.1f));
+    }
+    void Jump()
+    {
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 }

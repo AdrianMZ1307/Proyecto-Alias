@@ -60,7 +60,7 @@ public class PlayerController : MonoBehaviour
     {
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
-        Debug.Log($"Input: {moveX}, {moveZ}");
+        //Debug.Log($"Input of {characterStats.characterName}: {moveX}, {moveZ}");
 
         Vector3 input = new Vector3(moveX, 0f, moveZ).normalized;
 
@@ -112,6 +112,38 @@ public class PlayerController : MonoBehaviour
             Debug.Log("¡ATAQUE!");
             canAttack = false;
             Invoke(nameof(ResetAttack), attackCooldown);
+
+            PerformAttack(); // Nuevo método
+        }
+    }
+    void PerformAttack()
+    {
+        // Dirección de ataque: hacia adelante
+        Vector3 attackDirection = transform.forward;
+
+        // Posición desde donde empieza el raycast (ligeramente elevado)
+        Vector3 origin = transform.position + Vector3.up * 0.2f;
+
+        float attackRange = 2.5f;
+
+        // Visual debug
+        Debug.DrawRay(origin, attackDirection * attackRange, Color.red, 0.5f);
+
+        if (Physics.Raycast(origin, attackDirection, out RaycastHit hit, attackRange))
+        {
+            EnemyDummy enemy = hit.collider.GetComponent<EnemyDummy>();
+            if (enemy != null)
+            {
+                enemy.TakeDamage(25); // Por ahora, 25 de daño
+            }
+            else
+            {
+                Debug.Log("Ataque acertó algo, pero no era un enemigo.");
+            }
+        }
+        else
+        {
+            Debug.Log("¡Ataque fallido!");
         }
     }
 

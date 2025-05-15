@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1068b6c35c6e8c48af77b2a9d38e456, type: 3}
   m_Name: Vanessa
   m_EditorClassIdentifier: 
-  characterName: Alias
+  characterName: Vanessa
   moveSpeed: 6
   runSpeed: 1.25
   extraJumps: 2

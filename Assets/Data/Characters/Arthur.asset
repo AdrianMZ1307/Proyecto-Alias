@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1068b6c35c6e8c48af77b2a9d38e456, type: 3}
   m_Name: Arthur
   m_EditorClassIdentifier: 
-  characterName: Alias
+  characterName: Arthur
   moveSpeed: 4.75
   runSpeed: 1.15
   extraJumps: 0

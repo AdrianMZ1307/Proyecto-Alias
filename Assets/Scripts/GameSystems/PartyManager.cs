@@ -2,7 +2,8 @@ using UnityEngine;
 
 public class PartyManager : MonoBehaviour
 {
-    public ThirdPersonCamera cameraScript; // La cámara externa (CameraHolder)
+    //public ThirdPersonCamera cameraScript; 
+    public SimpleFollowCamera cameraScript;
 
     [Header("Personajes del grupo")]
     public GameObject[] partyMembers; // Aquí arrastras Alias, Vanessa, Arthur
@@ -35,29 +36,49 @@ public class PartyManager : MonoBehaviour
 
     void ActivateCharacter(int index)
     {
-        var newChar = partyMembers[index];
+        GameObject newChar = partyMembers[index];
 
-        // Activar el nuevo controlador
+        // Activar controlador del nuevo personaje
         newChar.GetComponent<PlayerController>().enabled = true;
-
-        // Actualizar cámara
+        PartyFollower thisFollower = newChar.GetComponent<PartyFollower>();
+        if (thisFollower != null)
+        {
+            thisFollower.enabled = false;
+        }
+        // Actualizar cámara si la usas
         cameraScript.target = newChar.transform;
-        cameraScript.cameraPivot = newChar.transform.Find("CameraPivot");
 
-        // Actualizar seguidores
+        // Desactivar los demás personajes + asignar target a seguidores
         for (int i = 0; i < partyMembers.Length; i++)
         {
-            if (i == index) continue; // Saltamos al personaje activo
+            if (i == index) continue;
 
+
+            // Desactiva su controlador
+            partyMembers[i].GetComponent<PlayerController>().enabled = false;
+
+            // Asigna a quien seguir
             PartyFollower follower = partyMembers[i].GetComponent<PartyFollower>();
+
             if (follower != null)
             {
+                follower.enabled = true; // ¡Actívalo!
                 follower.targetToFollow = newChar.transform;
             }
-
-            // Asegúrate de que los controladores no se crucen
-            partyMembers[i].GetComponent<PlayerController>().enabled = false;
         }
+
+        // ACTUALIZAR UI
+        UIManager ui = FindObjectOfType<UIManager>();
+        PlayerController newController = newChar.GetComponent<PlayerController>();
+
+        if (ui != null && newController != null)
+        {
+            ui.UpdateCharacterName(newController.characterStats.characterName);
+            ui.UpdateHealthBar(newController.currentHealth, newController.maxHealth);
+        }
+
+        // Actualizar índice actual
+        currentIndex = index;
     }
 
 

@@ -25,6 +25,10 @@ public class PlayerController : MonoBehaviour
     public float attackCooldown = 1f;
     private bool canAttack = true;
 
+    [Header("Rotación estilo tanque")]
+    public float turnSpeed = 120f; // grados por segundo
+
+
     [Header("Rotación hacia cámara")]
     public float turnSmoothTime = 0.1f;
     float turnSmoothVelocity;
@@ -37,6 +41,15 @@ public class PlayerController : MonoBehaviour
     private int extraJumps = 1; // 1 = doble salto, 2 = triple salto
     private int jumpsLeft;
 
+    [Header("UI")]
+    public float maxHealth = 100f;
+    public float currentHealth = 100f;
+    public float currentRage = 0f;
+
+    private UIManager uiManager;
+
+    public DialogueManager dialogueManager;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -46,37 +59,50 @@ public class PlayerController : MonoBehaviour
         moveSpeed = characterStats.moveSpeed;
         runSpeed = characterStats.runSpeed;
         extraJumps = characterStats.extraJumps;
+
+        // Buscamos el UIManager
+        uiManager = FindObjectOfType<UIManager>();
+
+        // Al comenzar, actualizamos la UI
+        uiManager.UpdateHealthBar(currentHealth, maxHealth);
+        uiManager.UpdateCharacterName(characterStats.characterName);
+        uiManager.UpdateRageBar(currentRage, 100);
     }
 
     void Update()
     {
+        if (dialogueManager != null && dialogueManager.IsDialogueActive())
+            return; // ⛔ Detener todo si hay diálogo
+
         HandleMovementInput();
         HandleJumpInput();
         HandleAttackInput();
         CheckGround();
+        if (Input.GetKeyDown(KeyCode.H))
+        {
+            TakeDamage(10f); // Quítate 10 de vida
+        }
     }
 
     void HandleMovementInput()
     {
-        float moveX = Input.GetAxis("Horizontal");
-        float moveZ = Input.GetAxis("Vertical");
-        //Debug.Log($"Input of {characterStats.characterName}: {moveX}, {moveZ}");
+        float vertical = Input.GetAxis("Vertical");   // W y S
+        float horizontal = Input.GetAxis("Horizontal"); // A y D
 
-        Vector3 input = new Vector3(moveX, 0f, moveZ).normalized;
+        // Movimiento hacia adelante o atrás
+        Vector3 move = transform.forward * vertical;
 
-        if (input.magnitude >= 0.1f)
+        // Guardamos la dirección para usar en FixedUpdate
+        moveDirection = move.normalized;
+
+        // Rotación con A y D
+        if (Mathf.Abs(horizontal) > 0.1f)
         {
-            float targetAngle = Mathf.Atan2(input.x, input.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
-            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
-            transform.rotation = Quaternion.Euler(0f, angle, 0f);
-
-            moveDirection = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-        }
-        else
-        {
-            moveDirection = Vector3.zero;
+            float rotationAmount = horizontal * turnSpeed * Time.deltaTime;
+            transform.Rotate(0f, rotationAmount, 0f);
         }
     }
+
 
     void FixedUpdate()
     {
@@ -84,6 +110,7 @@ public class PlayerController : MonoBehaviour
         Vector3 velocity = moveDirection * speed;
         velocity.y = rb.linearVelocity.y;
         rb.linearVelocity = velocity;
+
     }
     bool IsRunning()
     {
@@ -113,37 +140,49 @@ public class PlayerController : MonoBehaviour
             canAttack = false;
             Invoke(nameof(ResetAttack), attackCooldown);
 
-            PerformAttack(); // Nuevo método
+            PerformAttack();
         }
     }
     void PerformAttack()
     {
-        // Dirección de ataque: hacia adelante
-        Vector3 attackDirection = transform.forward;
-
-        // Posición desde donde empieza el raycast (ligeramente elevado)
         Vector3 origin = transform.position + Vector3.up * 0.2f;
+        float radius = 2.5f;          // Qué tan lejos alcanza el ataque
+        float maxAngle = 60f;         // Grados del cono (30° a cada lado)
+        int damage = 25;
 
-        float attackRange = 2.5f;
+        // Dibujo visual en la escena (esfera)
+        Debug.DrawRay(origin, transform.forward * radius, Color.red, 0.5f);
 
-        // Visual debug
-        Debug.DrawRay(origin, attackDirection * attackRange, Color.red, 0.5f);
+        // Detectamos todos los colliders cercanos
+        Collider[] hitColliders = Physics.OverlapSphere(origin, radius);
 
-        if (Physics.Raycast(origin, attackDirection, out RaycastHit hit, attackRange))
+        foreach (Collider collider in hitColliders)
         {
-            EnemyDummy enemy = hit.collider.GetComponent<EnemyDummy>();
+            // Revisamos si es un enemigo
+            EnemyDummy enemy = collider.GetComponent<EnemyDummy>();
             if (enemy != null)
             {
-                enemy.TakeDamage(25); // Por ahora, 25 de daño
+                // Dirección desde el jugador al enemigo
+                Vector3 directionToEnemy = (collider.transform.position - origin).normalized;
+                directionToEnemy.y = 0f; // ignorar altura
+
+                // Ángulo entre el forward del jugador y la dirección al enemigo
+                float angle = Vector3.Angle(transform.forward, directionToEnemy);
+
+                if (angle <= maxAngle / 2f)
+                {
+                    // Está dentro del cono, aplicamos daño
+                    enemy.TakeDamage(damage);
+                    if (characterStats.transformUnlocked)
+                    {
+                        FillRage(5);
+                    }
+                }
+                else
+                {
+                    Debug.Log($"{collider.name} está cerca, pero fuera del ángulo de ataque");
+                }
             }
-            else
-            {
-                Debug.Log("Ataque acertó algo, pero no era un enemigo.");
-            }
-        }
-        else
-        {
-            Debug.Log("¡Ataque fallido!");
         }
     }
 
@@ -178,5 +217,22 @@ public class PlayerController : MonoBehaviour
     void Jump()
     {
         rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+    }
+    public void TakeDamage(float amount)
+    {
+        currentHealth -= amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        uiManager.UpdateHealthBar(currentHealth, maxHealth);
+        if (characterStats.transformUnlocked)
+        {
+            FillRage(15);
+        }
+    }
+
+    public void FillRage(float amount)
+    {
+        currentRage += amount;
+        currentRage = Mathf.Clamp(currentRage, 0, 100);
+        uiManager.UpdateRageBar(currentRage, 100);
     }
 }

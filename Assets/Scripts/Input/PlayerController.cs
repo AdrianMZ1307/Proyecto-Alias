@@ -160,6 +160,33 @@ public class PlayerController : MonoBehaviour
         {
             // Revisamos si es un enemigo
             EnemyDummy enemy = collider.GetComponent<EnemyDummy>();
+            if (enemy == null)
+            {
+                EnemyController enemyC = collider.GetComponent<EnemyController>();
+                if (enemyC != null)
+                {
+                    // Dirección desde el jugador al enemigo
+                    Vector3 directionToEnemy = (collider.transform.position - origin).normalized;
+                    directionToEnemy.y = 0f; // ignorar altura
+
+                    // Ángulo entre el forward del jugador y la dirección al enemigo
+                    float angle = Vector3.Angle(transform.forward, directionToEnemy);
+
+                    if (angle <= maxAngle / 2f)
+                    {
+                        // Está dentro del cono, aplicamos daño
+                        enemyC.TakeDamage(damage);
+                        if (characterStats.transformUnlocked)
+                        {
+                            FillRage(5);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log($"{collider.name} está cerca, pero fuera del ángulo de ataque");
+                    }
+                }
+            }
             if (enemy != null)
             {
                 // Dirección desde el jugador al enemigo

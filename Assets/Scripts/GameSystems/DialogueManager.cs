@@ -78,9 +78,12 @@ public class DialogueManager : MonoBehaviour
         foreach (DialogueOption option in currentDialogue.options)
         {
             GameObject btn = Instantiate(choiceButtonPrefab, choicesPanel.transform);
-           /* btn.GetComponent<Image>().gameObject.SetActive(true);
-            btn.GetComponent<ButtonMeshProUGUI>().gameObject.SetActive(true);
-            btn.GetComponentInChildren<TextMeshProUGUI>().GetComponent().gameObject.SetActive(true);*/
+            //btn.GetComponent<Image>().gameObject.SetActive(true);
+            //btn.GetComponent<Button>().gameObject.SetActive(true);
+            btn.GetComponentInChildren<UnityEngine.UI.Button>(true).gameObject.SetActive(true);
+            btn.GetComponentInChildren<UnityEngine.UI.Image>(true).gameObject.SetActive(true);
+            btn.GetComponentInChildren<TextMeshProUGUI>(true).gameObject.SetActive(true);
+
             btn.GetComponentInChildren<TextMeshProUGUI>().text = option.optionText;
 
             btn.GetComponent<UnityEngine.UI.Button>().onClick.AddListener(() =>

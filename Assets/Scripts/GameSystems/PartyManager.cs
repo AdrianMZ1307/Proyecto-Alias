@@ -80,6 +80,10 @@ public class PartyManager : MonoBehaviour
         // Actualizar índice actual
         currentIndex = index;
     }
+    public GameObject GetActiveCharacter()
+    {
+        return partyMembers[currentIndex];
+    }
 
 
 }

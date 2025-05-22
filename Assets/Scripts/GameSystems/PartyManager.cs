@@ -25,14 +25,22 @@ public class PartyManager : MonoBehaviour
     {
         if (index == currentIndex || index >= partyMembers.Length) return;
 
-        // Desactivar el personaje actual
-        partyMembers[currentIndex].GetComponent<PlayerController>().enabled = false;
-        //partyMembers[currentIndex].GetComponentInChildren<Camera>().gameObject.SetActive(false);
+        // Verifica si el nuevo personaje está caído
+        var pc = partyMembers[index].GetComponent<PlayerController>();
+        if (pc != null && pc.isDown)
+        {
+            Debug.Log("❌ Ese personaje está fuera de combate.");
+            return;
+        }
 
-        // Activar el nuevo personaje
+        // Desactivar actual
+        partyMembers[currentIndex].GetComponent<PlayerController>().enabled = false;
+
+        // Activar el nuevo
         currentIndex = index;
         ActivateCharacter(currentIndex);
     }
+
 
     void ActivateCharacter(int index)
     {
@@ -84,6 +92,41 @@ public class PartyManager : MonoBehaviour
     {
         return partyMembers[currentIndex];
     }
+    public void CheckPartyStatus()
+    {
+        int alive = 0;
 
+        foreach (GameObject member in partyMembers)
+        {
+            PlayerController pc = member.GetComponent<PlayerController>();
+            if (pc != null && !pc.isDown)
+            {
+                alive++;
+            }
+        }
 
+        if (alive == 0)
+        {
+            Debug.Log("💀 Todos los personajes están fuera de combate. GAME OVER.");
+            // Aquí va lógica de Game Over: recarga escena, menú, etc.
+        }
+    }
+    public void SwitchToNextAlive()
+    {
+        for (int i = 0; i < partyMembers.Length; i++)
+        {
+            if (i == currentIndex) continue; // no elegir al que acaba de morir
+
+            PlayerController pc = partyMembers[i].GetComponent<PlayerController>();
+            if (pc != null && !pc.isDown)
+            {
+                ChangeCharacter(i); // usa tu función ya existente
+                Debug.Log($"🔁 Cambio automático a: {pc.characterStats.characterName}");
+                return;
+            }
+        }
+
+        // Si llegamos aquí, no queda nadie vivo (pero GameOver ya lo maneja CheckPartyStatus)
+        Debug.Log("⚠️ No hay personajes vivos a los que cambiar.");
+    }
 }

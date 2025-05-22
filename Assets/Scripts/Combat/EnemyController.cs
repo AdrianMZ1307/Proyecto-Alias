@@ -120,10 +120,16 @@ public class EnemyController : MonoBehaviour
     void Die()
     {
         Debug.Log($"{gameObject.name} ha muerto.");
+        LockOnSystem lockSystem = FindObjectOfType<LockOnSystem>();
+        if (lockSystem != null && lockSystem.GetCurrentTarget() == transform)
+        {
+            lockSystem.UnlockTarget();
+        }
 
         if (activeArena != null)
         {
             activeArena.NotifyEnemyDeath(this);
+            Destroy(gameObject); // borra la arena
         }
 
     }

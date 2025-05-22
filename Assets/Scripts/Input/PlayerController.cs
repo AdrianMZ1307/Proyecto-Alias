@@ -49,6 +49,11 @@ public class PlayerController : MonoBehaviour
     private UIManager uiManager;
 
     public DialogueManager dialogueManager;
+    public bool transformUnlocked = false;
+
+    [HideInInspector]
+    public bool isDown = false;
+
 
     void Start()
     {
@@ -59,6 +64,7 @@ public class PlayerController : MonoBehaviour
         moveSpeed = characterStats.moveSpeed;
         runSpeed = characterStats.runSpeed;
         extraJumps = characterStats.extraJumps;
+        transformUnlocked = characterStats.transformUnlocked;
 
         // Buscamos el UIManager
         uiManager = FindObjectOfType<UIManager>();
@@ -72,17 +78,28 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         if (dialogueManager != null && dialogueManager.IsDialogueActive())
-            return; // ⛔ Detener todo si hay diálogo
+        {
+            // ⛔ Si hay diálogo, no dejamos que se mueva, salte ni ataque
+            moveDirection = Vector3.zero;
+
+            // 🔴 Y además, detenemos el Rigidbody para evitar arrastre
+            rb.linearVelocity = Vector3.zero;
+            rb.linearVelocity = Vector3.zero;
+
+            return;
+        }
 
         HandleMovementInput();
         HandleJumpInput();
         HandleAttackInput();
         CheckGround();
+
         if (Input.GetKeyDown(KeyCode.H))
         {
-            TakeDamage(10f); // Quítate 10 de vida
+            TakeDamage(10f); // solo test
         }
     }
+
 
     void HandleMovementInput()
     {
@@ -247,14 +264,46 @@ public class PlayerController : MonoBehaviour
     }
     public void TakeDamage(float amount)
     {
+        if (isDown) return;
+
         currentHealth -= amount;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
         uiManager.UpdateHealthBar(currentHealth, maxHealth);
-        if (characterStats.transformUnlocked)
+
+        if (transformUnlocked)
+            FillRage(amount * 0.5f);
+
+        if (currentHealth <= 0)
         {
-            FillRage(15);
+            Die();
         }
     }
+
+
+    void Die()
+    {
+        isDown = true;
+        Debug.Log($"{characterStats.characterName} ha caído en combate.");
+
+        rb.linearVelocity = Vector3.zero;
+        rb.linearVelocity = Vector3.zero;
+
+        this.enabled = false;
+
+        PartyManager party = FindObjectOfType<PartyManager>();
+        if (party != null)
+        {
+            party.CheckPartyStatus();
+
+            // 👇 Solo cambia si este personaje era el activo
+            if (party.GetActiveCharacter() == this.gameObject)
+            {
+                party.SwitchToNextAlive();
+            }
+        }
+    }
+
+
 
     public void FillRage(float amount)
     {
@@ -262,4 +311,12 @@ public class PlayerController : MonoBehaviour
         currentRage = Mathf.Clamp(currentRage, 0, 100);
         uiManager.UpdateRageBar(currentRage, 100);
     }
+
+    public void Revive()
+    {
+        currentHealth = maxHealth;
+        isDown = false;
+        this.enabled = true;
+    }
+
 }

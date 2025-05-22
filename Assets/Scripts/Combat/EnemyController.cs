@@ -22,6 +22,12 @@ public class EnemyController : MonoBehaviour
     private float lastAttackTime;
     private bool inCombat = false;
 
+
+    public GameObject arenaPrefab; // Asigna el prefab de la arena
+    private DynamicCombatArena activeArena;
+    private bool hasStartedCombat = false;
+
+
     void Start()
     {
         currentHealth = maxHealth;
@@ -39,13 +45,17 @@ public class EnemyController : MonoBehaviour
     {
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        if (inCombat || distanceToPlayer < detectionRange)
+        if (!hasStartedCombat && distanceToPlayer < detectionRange)
         {
+            StartCombatHere();
             inCombat = true;
+        }
 
+        if (inCombat)
+        {
             if (distanceToPlayer <= attackRange)
             {
-                agent.SetDestination(transform.position); // se detiene
+                agent.SetDestination(transform.position); // detenerse
                 TryAttack();
             }
             else
@@ -59,6 +69,7 @@ public class EnemyController : MonoBehaviour
         }
     }
 
+
     void Patrol()
     {
         if (agent.remainingDistance < 0.5f)
@@ -67,6 +78,18 @@ public class EnemyController : MonoBehaviour
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
         }
     }
+
+    void StartCombatHere()
+    {
+        hasStartedCombat = true;
+
+        GameObject arenaGO = Instantiate(arenaPrefab, transform.position, Quaternion.identity);
+        activeArena = arenaGO.GetComponent<DynamicCombatArena>();
+        activeArena.AddEnemy(this);
+
+        Debug.Log("⚔️ Combate iniciado. Arena generada.");
+    }
+
 
     void TryAttack()
     {
@@ -97,6 +120,12 @@ public class EnemyController : MonoBehaviour
     void Die()
     {
         Debug.Log($"{gameObject.name} ha muerto.");
-        Destroy(gameObject);
+
+        if (activeArena != null)
+        {
+            activeArena.NotifyEnemyDeath(this);
+        }
+
     }
+
 }
